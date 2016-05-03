@@ -9,6 +9,9 @@ import environnement.Action;
 import environnement.Etat;
 import environnement.MDP;
 import environnement.gridworld.ActionGridworld;
+import java.util.HashMap;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 
 /**
@@ -22,7 +25,7 @@ public class ValueIterationAgent extends PlanningValueAgent{
 	 * discount facteur
 	 */
 	protected double gamma;
-	//*** VOTRE CODE
+	HashMap<Etat, Double> v ;
 
 
 	
@@ -34,7 +37,10 @@ public class ValueIterationAgent extends PlanningValueAgent{
 	public ValueIterationAgent(double gamma,MDP mdp) {
 		super(mdp);
 		this.gamma = gamma;
-		//*** VOTRE CODE
+		v = new HashMap<>();
+                for(Etat e : mdp.getEtatsAccessibles()) {
+                    v.put(e, 0.0);
+                }
 	
 	
 	}
@@ -55,7 +61,29 @@ public class ValueIterationAgent extends PlanningValueAgent{
 		//lorsque l'on planifie jusqu'a convergence, on arrete les iterations lorsque
 		//delta < epsilon 
 		this.delta=0.0;
-		//*** VOTRE CODE
+		HashMap<Etat, Double> v_clone = (HashMap<Etat, Double>) v.clone() ;
+                for(Etat e : mdp.getEtatsAccessibles()) {
+                    double max = 0 ;
+                    for(Action a : mdp.getActionsPossibles(e)) {
+                        double somme = 0 ;
+                        try {
+                            Map<Etat,Double> m = mdp.getEtatTransitionProba(e, a);
+                            for(Etat e2 : m.keySet()) {
+                                somme += m.get(e2) *(mdp.getRecompense(e, a, e2)+gamma*v_clone.get(e));
+                            }
+                        } catch (Exception ex) {
+                            Logger.getLogger(ValueIterationAgent.class.getName()).log(Level.SEVERE, null, ex);
+                        }
+                        max = Math.max(max, somme) ;
+                    }
+                    v.put(e, max);
+                }
+                
+                double maxDelta = 0 ;
+                for(Etat e : v.keySet()) {
+                    Math.abs(v.get(e) - v_clone.get(e));
+                    //TODO
+                }
 		
 	
 		
