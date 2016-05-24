@@ -25,7 +25,7 @@ public class ValueIterationAgent extends PlanningValueAgent{
 	 * discount facteur
 	 */
 	protected double gamma;
-	HashMap<Etat, Double> v ;
+	Map<Etat, Double> v ;
 
 
 	
@@ -57,44 +57,47 @@ public class ValueIterationAgent extends PlanningValueAgent{
 	 */
 	@Override
 	public void updateV(){
-		//delta est utilise pour detecter la convergence de l'algorithme
-		//lorsque l'on planifie jusqu'a convergence, on arrete les iterations lorsque
-		//delta < epsilon 
-		this.delta=0.0;
-		HashMap<Etat, Double> v_clone = (HashMap<Etat, Double>) v.clone() ;
-                for(Etat e : mdp.getEtatsAccessibles()) {
-                    double max = 0 ;
-                    for(Action a : mdp.getActionsPossibles(e)) {
-                        double somme = 0 ;
-                        try {
-                            Map<Etat,Double> m = mdp.getEtatTransitionProba(e, a);
-                            for(Etat e2 : m.keySet()) {
-                                somme += m.get(e2) *(mdp.getRecompense(e, a, e2)+gamma*v_clone.get(e));
+            //delta est utilise pour detecter la convergence de l'algorithme
+            //lorsque l'on planifie jusqu'a convergence, on arrete les iterations lorsque
+            //delta < epsilon
+            this.delta=0.0;
+            
+            Double vmaxi = 0., vmini=0., current, vmaxi_max = 0., vmini_min = 0.;
+            Map<Etat, Double> proba;
+            Map<Etat, Double> tmp = new HashMap<>();
+            try {
+                for(Etat e : getMdp().getEtatsAccessibles()){
+                    tmp.put(e, 0.);
+                    if(!getMdp().estAbsorbant(e)){
+                        for(Action a : getMdp().getActionsPossibles(e)){
+                            current = 0.;
+                            proba = getMdp().getEtatTransitionProba(e, a);
+                            for(Etat s : proba.keySet()){
+                                current = current + (proba.get(s) * (getMdp().getRecompense(e, a, s) + (gamma*v.get(s))));
                             }
-                        } catch (Exception ex) {
-                            Logger.getLogger(ValueIterationAgent.class.getName()).log(Level.SEVERE, null, ex);
+                            if(current > vmaxi) vmaxi = current;
+                            if(current<vmini) vmini = current;
                         }
-                        max = Math.max(max, somme) ;
+                        tmp.put(e, vmaxi);
+                        if(vmaxi > vmaxi_max) vmaxi_max = vmaxi;
+                        if(vmini< vmini_min)    vmini_min = vmini;
+                        vmaxi = vmini = 0.;
                     }
-                    v.put(e, max);
                 }
-                
-                double maxDelta = 0 ;
-                for(Etat e : v.keySet()) {
-                    Math.abs(v.get(e) - v_clone.get(e));
-                    //TODO
-                }
-		
-	
-		
-		
-		// mise a jour vmax et vmin pour affichage du gradient de couleur:
-		//vmax est la valeur de max pour tout s de V
-		//vmin est la valeur de min pour tout s de V
-		// ...
-		
-		//******************* a laisser a la fin de la methode
-		this.notifyObs();
+                v = tmp;
+            } catch (Exception ex) {
+                Logger.getLogger(ValueIterationAgent.class.getName()).log(Level.SEVERE, null, ex);
+            }
+
+            // mise a jour vmax et vmin pour affichage du gradient de couleur:
+            //vmax est la valeur de max pour tout s de V
+            //vmin est la valeur de min pour tout s de V
+            // ...
+            vmax = vmaxi_max;
+            vmin = vmini_min;
+
+            //******************* a laisser a la fin de la methode
+            this.notifyObs();
 	}
 	
 	
@@ -104,16 +107,14 @@ public class ValueIterationAgent extends PlanningValueAgent{
      */
 	@Override
 	public Action getAction(Etat e) {
-		//*** VOTRE CODE
-		
-	
-		return null;
-	}
+            List<Action> Politique = getPolitique(e);
+            return getMdp().estAbsorbant(e) ? null : Politique.get(new Random().nextInt(Politique.size()));
+        }
 	@Override
 	public double getValeur(Etat _e) {
-		//*** VOTRE CODE
-		
-		return 0.0;
+            if(v.containsKey(_e)){
+                return v.get(_e) != null ? v.get(_e) : 0.;
+            } else return 0.0;
 	}
 	/**
 	 * renvoi la (les) action(s) de plus forte(s) valeur(s) dans l'etat e 
@@ -121,25 +122,44 @@ public class ValueIterationAgent extends PlanningValueAgent{
 	 */
 	@Override
 	public List<Action> getPolitique(Etat _e) {
-		List<Action> l = new ArrayList<Action>();
-		//*** VOTRE CODE
-		
-		
-		return l;
+		List<Action> politique = new ArrayList<>();
+                List<Action> actionsPossibles = this.mdp.getActionsPossibles(_e);
+                
+                double vmaxi = -Double.MAX_VALUE;
+                
+                for (Action a : actionsPossibles) {
+                    try {
+                        HashMap<Etat, Double> hash = (HashMap<Etat, Double>) this.mdp.getEtatTransitionProba(_e, a);
+                        double sum = 0d;
+                        for (Etat dEtat : hash.keySet()) {
+                            sum += hash.get(dEtat) * (this.mdp.getRecompense(_e, a, dEtat) + this.gamma * this.v.get(dEtat));
+                        }
+                        if (sum > vmaxi) {
+                            vmaxi = sum;
+                            politique.clear();
+                            politique.add(a);
+                        } else if (sum == vmaxi) {
+                            politique.add(a);
+                        }
+                    } catch (Exception ex) {
+                        Logger.getLogger(ValueIterationAgent.class.getName()).log(Level.SEVERE, null, ex);
+                    }
+                }
+                return politique;
 		
 	}
 	
 	@Override
 	public void reset() {
 		super.reset();
-		//*** VOTRE CODE
-		
-		
-		
-		
-		
-		/*-----------------*/
-		this.notifyObs();
+                for (Etat e : this.mdp.getEtatsAccessibles()) {
+                    this.v.put(e, 0.0);
+                }
+
+                super.vmin = Double.MAX_VALUE;
+                super.vmax = Double.MIN_VALUE;
+
+                this.notifyObs();
 
 	}
 
